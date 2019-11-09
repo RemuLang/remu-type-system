@@ -9,15 +9,15 @@ sig
   val nom : int -> repr
   val fresh: string -> repr
   val tuple : repr list -> repr
-  val record : repr StrM.t -> repr
-  val forall: StrS.t * repr -> repr
+  val record : (string, repr) map -> repr
+  val forall: string set * repr -> repr
 end
 
 let mk_record : type a.
   (module Algebra with type repr = a) ->
   (string * a) list -> a = fun (module M) xs ->
   let open M in
-  record @@ StrM.of_seq @@ List.to_seq xs
+  record @@ Map.of_enum @@ List.enum xs
 
 type printed = {str : string; is_complex : bool}
 module PrintAlgebra : Algebra with type repr = printed
@@ -45,7 +45,7 @@ module PrintAlgebra : Algebra with type repr = printed
   let fresh s =  {str="'" ^ s ^ "}"; is_complex=false}
   let forall (ns, {str; is_complex}) =
     let str =
-      StrS.fold (fun st cur -> st ^ " " ^ cur) ns "" ^ ". " ^ str
+      Set.fold (fun st cur -> st ^ " " ^ cur) ns "" ^ ". " ^ str
     in {str; is_complex}
   let tuple xs =
     let str =
@@ -54,7 +54,7 @@ module PrintAlgebra : Algebra with type repr = printed
       | _   -> "(" ^ String.concat ", " (List.map unbox xs) ^ ")"
     in {str; is_complex=false}
   let record fields =
-    let fields = StrM.fold (fun key a s -> (key, a)::s) fields [] in
+    let fields = Map.foldi (fun key a s -> (key, a)::s) fields [] in
     let fields = List.map (fun (key, {str; _}) -> key ^ ": " ^ str) fields in
     let str = "{" ^ String.concat ", " fields ^ "}" in
     {str; is_complex=false}

@@ -1,2 +1,4 @@
 (test
- (name test_remu_ts))
+ (name test_infer)
+ (libraries remu_ts)
+ (preprocess (pps ppx_deriving.show)))
