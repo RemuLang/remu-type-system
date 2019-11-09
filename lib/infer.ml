@@ -1,14 +1,25 @@
 (* open Remu_ts.Comm *)
 open Comm
-type t =
+
+type rowpath =
+  | ExtRef of t
+  | Mono
+
+and t =
   | App of t * t
   | Arrow of t * t
   | Var of int
   | Nom of int
   | Fresh of string
   | Tuple of t list
-  | Record of t StrM.t
+  | Record of t StrM.t * rowpath
   | Forall of StrS.t * t
+
+type tctx = {
+  store : t IntM.t;
+  qualns  : string IntM.t; (* qualified names for nominal types *)
+  rowfs   : t StrM.t IntM.t (* row fields *)
+}
 
 let previsit (f : 'ctx -> t -> 'ctx * t) : 'ctx -> t -> 'ctx * t =
   let rec visit ctx' root =
@@ -19,7 +30,9 @@ let previsit (f : 'ctx -> t -> 'ctx * t) : 'ctx -> t -> 'ctx * t =
     | App(a, b) -> App(eval_st a, eval_st b)
     | Arrow(a, b) -> Arrow(eval_st a, eval_st b)
     | Tuple(xs) -> Tuple(List.map eval_st xs)
-    | Record(tbl) -> Record(StrM.map eval_st tbl)
+    | Record(tbl, ExtRef a) ->
+      Record(StrM.map eval_st tbl, ExtRef (eval_st a))
+    | Record(tbl, ex) -> Record(StrM.map eval_st tbl, ex)
     | Forall(ns, t) -> Forall(ns, eval_st t)
   in visit
 
@@ -31,7 +44,9 @@ let postvisit (f : 'ctx -> t -> 'ctx * t) : 'ctx -> t -> 'ctx * t=
     | App(a, b) -> App(eval_st a, eval_st b)
     | Arrow(a, b) -> Arrow(eval_st a, eval_st b)
     | Tuple(xs) -> Tuple(List.map eval_st xs)
-    | Record(tbl) -> Record(StrM.map eval_st tbl)
+    | Record(tbl, ExtRef a) ->
+      Record(StrM.map eval_st tbl, ExtRef (eval_st a))
+    | Record(tbl, ex) -> Record(StrM.map eval_st tbl, ex)
     | Forall(ns, t) -> Forall(ns, eval_st t)
   in visit
 
@@ -43,18 +58,15 @@ let visit_check (f : t -> bool) : t -> bool =
       | App(a, b) -> visit a && visit b
       | Arrow(a, b) -> visit a && visit b
       | Tuple(xs) -> List.for_all visit xs
-      | Record(tbl) -> StrM.for_all (fun a b -> visit b) tbl
+      | Record(tbl, ExtRef a) -> StrM.for_all (fun _ b -> visit b) tbl && visit a
+      | Record(tbl, ex) -> StrM.for_all (fun _ b -> visit b) tbl
       | Forall(ns, t) -> visit t
     else false
   in visit
 
-
-type tctx = {
-  store : t IntM.t;
-  qualns  : string IntM.t; (* qualified names for nominal types *)
-}
-
 exception IllFormedType of string
+exception UnboundTypeVar of string
+exception RowFieldMismatch of string
 
 module type TState = sig
 
@@ -150,11 +162,9 @@ let crate_tc : tctx -> (module TState) =
       let rec unify lhs rhs = match lhs, rhs with
         | Nom a, Nom b -> a = b
         | Var a, Var b when a = b -> true
-        | Var a, (Var _ as b) ->
-          if occur_in a b
-          then raise @@ IllFormedType "a = a -> b"
-          else mut_tvar a b; true
-        | (Var _ as a), Forall(ns, poly) ->
+        (* This rule produces value restriction *)
+        | (Forall _ as a), b -> unify b a
+        | a, Forall(ns, poly) ->
           let ns = StrS.to_seq ns in
           let freemap =
             let fn a =
@@ -164,6 +174,48 @@ let crate_tc : tctx -> (module TState) =
             in StrM.of_seq @@ Seq.map fn ns
           in
           unify a @@ fresh freemap poly
+        | Var a, b ->
+          if occur_in a b
+          then raise @@ IllFormedType "a = a -> b"
+          else mut_tvar a b; true
+        | a, (Var _ as b) -> unify b a
+        | (_, Fresh s) | (Fresh s, _) -> raise @@ UnboundTypeVar s
+        | App(f1, arg1), App(f2, arg2) ->
+          unify f1 f2 && unify arg1 arg2
+        | Tuple xs1, Tuple xs2 ->
+          List.for_all2 unify xs1 xs2
+        | (Record _ as a), (Record _ as b) ->
+          let rec unify_has_field fn fty record_t =
+            (** may produce a new record_t *)
+            match record_t with
+            | Var a ->
+              let ex = TVar (new_tvar())
+              in Record(list2strmap [fn, fty], ex)
+            | Record(m, ex) ->
+              let fty' = StrM.find_opt k map in
+              if fty' = None then
+                Record(m, unify_has_field fn fty ex)
+              else
+              if unify fty fty'
+              then prune record_t
+              else raise @@ RowFieldMismatch key
+          in
+          failwith ""
+          (* let (m1, ex1) = extract_row(a) in
+          let (m2, ex2) = extract_row(b) in
+          let common = map_intersect(m1, m2) in
+          let common_keys = map_keys common in
+          let only_by1 = map_diff(m1, common_keys) in
+          let only_by2 = map_diff(m2, common_keys) in
+          let fn key a1 =
+            let a2 = StrM.find key only_by2
+            in unify a1 a2
+          in StrM.for_all fn only_by2 &&
+          try
+            let rhs = StrM.fold unify_has_field only_by1 b in
+            let lhs = StrM.fold unify_has_field only_by2 a in
+            true
+          with RowFieldMismatch _ -> false *)
         (** TODO *)
       in failwith ""
 

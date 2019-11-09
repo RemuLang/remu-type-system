@@ -1,2 +1,3 @@
 (library
- (name remu_ts))
+ (name remu_ts)
+ (libraries batteries))

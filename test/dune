@@ -1,3 +1,2 @@
 (test
- (name test_remu_ts)
- (libraries remu_ts))
+ (name test_remu_ts))
