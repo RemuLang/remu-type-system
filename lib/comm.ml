@@ -21,6 +21,7 @@ module Set = BatSet
 module Enum = BatEnum
 module List = BatList
 module Array = BatArray
+module String = BatString
 
 type ('k, 'v) map = ('k, 'v) Map.t
 [@@deriving show]
