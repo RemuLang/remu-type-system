@@ -218,12 +218,13 @@ let crate_tc : tctx -> (module TState) =
           let common_keys =
             Map.intersect (fun _ _ -> ()) m1 m2
             |> Map.keys
+            |> List.of_enum
           in
           let only_by1 = Map.diffkeys m1 common_keys in
           let only_by2 = Map.diffkeys m2 common_keys in
           let check_align key = unify (Map.find key m1) (Map.find key m2)
           in
-          Enum.for_all check_align common_keys  &&
+          List.for_all check_align common_keys  &&
           let rec row_check row1 row2 only_by1 only_by2 =
             match (row1, row2) with
             | None, None -> Map.is_empty only_by1 && Map.is_empty only_by2

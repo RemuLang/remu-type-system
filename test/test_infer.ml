@@ -14,9 +14,14 @@ let _ = let open TC in
   let is_ok = unify record1 record2 in
   assert is_ok;
   let rho = prune rho in
+  print_endline @@ show rho;
   assert begin
   match rho with
-  | Record rowt ->
-    fst (extract_row rowt) |> Map.mem "f2"
+  | Record rowt -> begin
+    match extract_row rowt with
+      | fields, None ->
+        Map.mem "f2" fields && Map.cardinal fields = 1
+      | _ -> false
+    end
   | _ -> false
   end

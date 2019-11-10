@@ -7,7 +7,7 @@ type ('k, 'v) lmap = ('k * 'v) list
 module Map = struct
   include BatMap
   let diffkeys m ks =
-    BatEnum.fold (fun m k -> BatMap.remove k m) m ks
+    List.fold_left (fun m k -> BatMap.remove k m) m ks
   let find_opt k m =
     try
       Some (BatMap.find k m)
