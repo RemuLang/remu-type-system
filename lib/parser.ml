@@ -45,5 +45,3 @@ let none_of : char list -> char parser =
   let chrs' = Array.of_list chrs in
   let pred =  fun chr -> not @@ Array.mem chr chrs' in
   token(pred, "none of \"" ^ String.of_list chrs ^ "\"")
-
-

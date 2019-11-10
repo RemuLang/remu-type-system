@@ -1,25 +1,28 @@
 (* open Remu_ts.Comm *)
 open Comm
 
-type rowpath =
-  | ExtRef of t
-  | Mono
+type rowt =
+  | RowCons of string * t * rowt
+  | RowPoly of t
+  | RowMono
   [@@deriving show  { with_path = false }]
 
 and t =
-  | App of t * t
-  | Arrow of t * t
-  | Var of int
-  | Nom of int
-  | Fresh of string
-  | Tuple of t list
-  | Record of (string, t) map * rowpath
-  | Forall of string list * t
+  | App     of t * t
+  | Arrow   of t * t
+  | Var     of int
+  | Nom     of int
+  | Fresh   of string
+  | Tuple   of t list
+  | Forall  of string list * t
+  | Record  of rowt
   [@@deriving show  { with_path = false }]
 
 let (|->) a b = Arrow(a, b)
 let (<||) a b = App(a, b)
-let record xs ex = Record(Map.of_enum @@ List.enum xs, ex)
+let record xs = List.fold_right (fun (k, v) b -> RowCons(k, v, b)) xs
+let record_of_map map = Map.foldi (fun k v b -> RowCons(k, v, b)) map
+
 
 type tctx = {
   store : (int, t) map;
@@ -28,48 +31,43 @@ type tctx = {
 
 let empty_tctx = {store=Map.empty; qualns=Map.empty}
 
-let previsit (f : 'ctx -> t -> 'ctx * t) : 'ctx -> t -> 'ctx * t =
-  let rec visit ctx' root =
+let previsit (f : 'ctx -> t -> ('ctx * t)) : 'ctx -> t -> t =
+  let rec visit_t ctx' root =
     let (ctx, root) = f ctx' root in
-    let eval_st node = snd @@ visit ctx node in
-    ctx' <.> match root with
+    let rec eval_t node = visit_t ctx node
+    and eval_row root =
+      match root with
+      | RowCons(k, t, row) -> RowCons(k, eval_t t, eval_row row)
+      | RowMono            -> RowMono
+      | RowPoly t          -> RowPoly(eval_t t)
+    in
+    match root with
     | Var _ | Nom _ | Fresh _ -> root
-    | App(a, b) -> App(eval_st a, eval_st b)
-    | Arrow(a, b) -> Arrow(eval_st a, eval_st b)
-    | Tuple(xs) -> Tuple(List.map eval_st xs)
-    | Record(tbl, ExtRef a) ->
-      Record(Map.map eval_st tbl, ExtRef (eval_st a))
-    | Record(tbl, ex) -> Record(Map.map eval_st tbl, ex)
-    | Forall(ns, t) -> Forall(ns, eval_st t)
-  in visit
+    | App(a, b)               -> App(eval_t a, eval_t b)
+    | Arrow(a, b)             -> Arrow(eval_t a, eval_t b)
+    | Tuple xs                -> Tuple(List.map eval_t xs)
+    | Forall(ns, t)           -> Forall(ns, eval_t t)
+    | Record rowt             -> Record(eval_row rowt)
+  in visit_t
 
-let postvisit (f : 'ctx -> t -> 'ctx * t) : 'ctx -> t -> 'ctx * t=
-  let rec visit ctx root =
-    let eval_st node = snd @@ visit ctx node in
-    f ctx  @@ match root with
-    | Var _ | Nom _ | Fresh _ -> root
-    | App(a, b) -> App(eval_st a, eval_st b)
-    | Arrow(a, b) -> Arrow(eval_st a, eval_st b)
-    | Tuple(xs) -> Tuple(List.map eval_st xs)
-    | Record(tbl, ExtRef a) ->
-      Record(Map.map eval_st tbl, ExtRef (eval_st a))
-    | Record(tbl, ex) -> Record(Map.map eval_st tbl, ex)
-    | Forall(ns, t) -> Forall(ns, eval_st t)
-  in visit
 
 let visit_check (f : t -> bool) : t -> bool =
-  let rec visit root =
-    if f root then
+  let rec eval_t root =
+    f root &&
+    let rec eval_row root =
       match root with
-      | Var _ | Nom _ | Fresh _ -> true
-      | App(a, b) -> visit a && visit b
-      | Arrow(a, b) -> visit a && visit b
-      | Tuple(xs) -> List.for_all visit xs
-      | Record(tbl, ExtRef a) -> Map.for_all (fun _ b -> visit b) tbl && visit a
-      | Record(tbl, _) -> Map.for_all (fun _ b -> visit b) tbl
-      | Forall(_, t) -> visit t
-    else false
-  in visit
+      | RowCons(k, t, row) -> eval_t t && eval_row row
+      | RowMono            -> true
+      | RowPoly t          -> eval_t t
+    in
+    match root with
+    | Var _ | Nom _ | Fresh _ -> true
+    | App(a, b)               -> eval_t a && eval_t b
+    | Arrow(a, b)             -> eval_t a && eval_t b
+    | Tuple xs                -> List.for_all eval_t xs
+    | Forall(ns, t)           -> eval_t t
+    | Record rowt             -> eval_row rowt
+  in eval_t
 
 exception IllFormedType of string
 exception UnboundTypeVar of string
@@ -96,13 +94,9 @@ module type TState = sig
   val occur_in : int -> t -> bool
   val prune : t -> t
   val unify : t -> t -> bool
+  val extract_row: rowt -> (string, t) map * t option
 
 end
-
-let opt_alt : 'a option -> 'a -> 'a = fun opt rescue ->
-  match opt with
-  | Some a -> a
-  | _ -> rescue
 
 let crate_tc : tctx -> (module TState) =
   fun global ->
@@ -121,7 +115,7 @@ let crate_tc : tctx -> (module TState) =
             | Fresh s as a -> freshmap <.> Map.find_default a s freshmap
             | Forall(ns, _) as a -> List.fold_right Map.remove ns freshmap <.> a
             | a -> freshmap <.> a
-        in fun freshmap ty -> snd @@ previsit visit_func freshmap ty
+        in fun freshmap ty -> previsit visit_func freshmap ty
 
       let new_tvar () =
         let tctx = !global in
@@ -166,7 +160,21 @@ let crate_tc : tctx -> (module TState) =
                 mut_tvar i t; t
             end
           | _ -> a
-        in snd @@ previsit vfunc () x
+        in previsit vfunc () x
+
+      let extract_row =
+        let rec extract_row fields =
+          function
+          | RowCons(k, _, _) when Map.mem k fields ->
+            raise @@ RowFieldDuplicatedInfer k
+          | RowCons(k, v, rowt) ->
+            let fields = Map.add k v fields in
+            extract_row fields rowt
+          | RowMono -> (fields, None)
+          | RowPoly (Record rowt) ->
+            extract_row fields rowt
+          | RowPoly t -> (fields, Some t)
+        in extract_row Map.empty
 
       let rec unify lhs rhs = match prune lhs, prune rhs with
         | Nom a, Nom b -> a = b
@@ -191,45 +199,22 @@ let crate_tc : tctx -> (module TState) =
           unify f1 f2 && unify arg1 arg2
         | Tuple xs1, Tuple xs2 ->
           List.for_all2 unify xs1 xs2
-        | (Record _ as a), (Record _ as b) ->
-          let rec unify_has_field record_t fn fty =
+        | Record a, Record b ->
+          (* let rec unify_has_field record_t fn fty =
             (* fn: field name; fty: field type *)
             (* may produce a new record_t *)
             match record_t with
             | Var _ ->
               let ex = new_tvar() in
-              let ex = Record(Map.of_enum @@ Array.enum @@ [|fn, fty|], ExtRef ex)
+              let ex = Record(fn, fty, ExtRef ex)
               in unify record_t ex
-            | Record(m, ex) ->
-              let fty' = Map.find_opt fn m in
-              begin match fty', ex with
-                | None, ExtRef ex -> unify_has_field ex fn fty
-                | Some fty', _    -> unify fty fty'
-                | _ -> false
-              end
-            | _ -> false
-          in
-          let extract_row =
-            let rec extract_row fields =
-              function
-              | Record(m, ex) ->
-                let intersected = Map.keys @@
-                                  Map.intersect (fun _ _ -> ()) fields m in
-                let duplicated = not @@ Enum.is_empty intersected in
-                if duplicated then
-                  raise @@ RowFieldDuplicatedInfer
-                           (String.concat "," @@ List.of_enum intersected)
-                else
-                let fields = Map.union fields m
-                in begin match ex with
-                  | ExtRef ex -> extract_row fields ex
-                  | _ -> fields
-                end
-              | _ -> fields
-            in extract_row Map.empty
-          in
-          let m1 = extract_row a in
-          let m2 = extract_row b in
+            | Record(k, v, ex) when k = fn -> unify v fty
+            | Record(_, _, ExtRef ex)      -> unify_has_fiel ex fn fty
+            (* not row-polymorphic and given field not found *)
+            | Record (_, _, Mono)          -> false
+          in *)
+          let (m1, ex1) = extract_row a in
+          let (m2, ex2) = extract_row b in
           let common_keys =
             Map.intersect (fun _ _ -> ()) m1 m2
             |> Map.keys
@@ -239,8 +224,38 @@ let crate_tc : tctx -> (module TState) =
           let check_align key = unify (Map.find key m1) (Map.find key m2)
           in
           Enum.for_all check_align common_keys  &&
-          Map.for_all (unify_has_field b) only_by1 &&
-          Map.for_all (unify_has_field a) only_by2
+          let rec row_check row1 row2 only_by1 only_by2 =
+            match (row1, row2) with
+            | None, None -> Map.is_empty only_by1 && Map.is_empty only_by2
+            | Some _, None -> row_check row2 row1 only_by2 only_by1
+            | None, Some row2 ->
+              (* only_by1 == {only_by2 | row2}
+                where
+                  only_by1 \cap \only_by2 = \emptyset,
+                therefore,
+                  only_by2 = \emptyset,
+                  row2 = only_by1
+              *)
+              Map.is_empty only_by2 &&
+              unify row2 @@ Record (record_of_map only_by1 RowMono)
+            | Some row1, Some row2 ->
+              (*
+                {only_by1|row1} == {only_by2|row2},
+                where
+                  only_by1 \cap \only_by2 = \emptyset,
+                therefore,
+                  forall type in only_by2. type in row1, and
+                  forall type in only_by1. type in row2,
+                therefore,
+                  t1 = {only_by1 \cup only_by2|row} = t2,
+                  {only_by1|row} = row2
+                  {only_by2|row} = row1
+              *)
+              let polyrow = RowPoly (new_tvar()) in
+              let ex2 = Record(record_of_map only_by1 polyrow) in
+              let ex1 = Record(record_of_map only_by2 polyrow) in
+              unify row1 ex1 && unify row2 ex2
+          in row_check ex1 ex2 only_by1 only_by2
       | _ -> false
   end: TState)
 

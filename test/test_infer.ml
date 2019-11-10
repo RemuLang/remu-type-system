@@ -9,13 +9,14 @@ let _ = let open TC in
   let is_ok = unify (Tuple [a; a]) (Tuple [i32; b]) in
   assert (is_ok && prune a = i32 && prune b = i32);
   let rho = new_tvar() in
-  let record1 = record ["f1", i32] (ExtRef rho) in
-  let record2 = record ["f2", i32; "f1", a] Mono in
+  let record1 = Record(record ["f1", i32] (RowPoly rho)) in
+  let record2 = Record(record ["f2", i32; "f1", a] RowMono) in
   let is_ok = unify record1 record2 in
   assert is_ok;
   let rho = prune rho in
   assert begin
   match rho with
-  | Record(ns, _) when Map.mem "f2" ns -> true
+  | Record rowt ->
+    fst (extract_row rowt) |> Map.mem "f2"
   | _ -> false
   end
