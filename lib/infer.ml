@@ -56,7 +56,7 @@ let visit_check (f : t -> bool) : t -> bool =
     f root &&
     let rec eval_row root =
       match root with
-      | RowCons(k, t, row) -> eval_t t && eval_row row
+      | RowCons(_, t, row) -> eval_t t && eval_row row
       | RowMono            -> true
       | RowPoly t          -> eval_t t
     in
@@ -65,7 +65,7 @@ let visit_check (f : t -> bool) : t -> bool =
     | App(a, b)               -> eval_t a && eval_t b
     | Arrow(a, b)             -> eval_t a && eval_t b
     | Tuple xs                -> List.for_all eval_t xs
-    | Forall(ns, t)           -> eval_t t
+    | Forall(_, t)           -> eval_t t
     | Record rowt             -> eval_row rowt
   in eval_t
 
