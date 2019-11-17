@@ -18,6 +18,12 @@ and t =
   | Record  of rowt
   [@@deriving show  { with_path = false }]
 
+type builder =
+  | Store of int * t
+  | DefNom of int * string
+  | MKUnify of t * t
+  [@@deriving show  { with_path = false }]
+
 let (|->) a b = Arrow(a, b)
 let (<||) a b = App(a, b)
 let record xs = List.fold_right (fun (k, v) b -> RowCons(k, v, b)) xs
