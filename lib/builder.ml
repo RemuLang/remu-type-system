@@ -67,7 +67,7 @@ let dump out = fun ((module M: TState), r, ns) ->
   let print s = output_string out s in
   let _ = match r with
     | Some i ->
-      print @@ sprintf "Error(%d)\n" i
+      print @@ sprintf "Error(%d);\n" i
     | _ -> ()
   in
   (* (!(M.global).store |> Map.keys |> List.of_enum) *)
@@ -77,4 +77,4 @@ let dump out = fun ((module M: TState), r, ns) ->
       print @@ string_of_int i;
       print " ";
       print @@ dumpstr pruned;
-      print "\n"
+      print ";\n"
