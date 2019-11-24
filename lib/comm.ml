@@ -35,3 +35,5 @@ let (<.>) a b = (a, b)
 
 let (>>) f g = fun x -> f (g x)
 let (<<) f g = fun x -> g (f x)
+
+let flip f a b = f b a

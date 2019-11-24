@@ -1,5 +1,6 @@
 %{
 open Infer
+open Builder
 %}
 
 %token <int> DECIMAL
@@ -23,12 +24,14 @@ open Infer
 %token EOF
 %token FORALL
 
-%start <Infer.builder list> prog
+%start <Builder.builder list> prog
 
 %%
 
-prog: stmts=list(toplevel); EOF { stmts }
+prog: stmts=list(toplevel) EOF { stmts }
+  | stmts=list(toplevel) SEMICOLON { stmts }
   ;
+
 toplevel: a=store SEMICOLON {a}
   | a=nom SEMICOLON {a}
   | a=unify SEMICOLON {a}

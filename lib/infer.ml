@@ -18,12 +18,6 @@ and t =
   | Record  of rowt
   [@@deriving show  { with_path = false }]
 
-type builder =
-  | Store of int * t
-  | DefNom of int * string
-  | MKUnify of t * t
-  [@@deriving show  { with_path = false }]
-
 let (|->) a b = Arrow(a, b)
 let (<||) a b = App(a, b)
 let record xs = List.fold_right (fun (k, v) b -> RowCons(k, v, b)) xs
@@ -85,6 +79,7 @@ module type TState = sig
   val global : tctx ref
   val load_tvar : int -> t
   val mut_tvar : int -> t -> unit
+  val mut_tnom : int -> string -> unit
 
   val fresh : (string, t) map -> t -> t
 
@@ -115,6 +110,11 @@ let crate_tc : tctx -> (module TState) =
         let up = fun _ -> Some a in
         let tctx = !global in
         global := {tctx with store=Map.modify_opt i up tctx.store}
+
+      let mut_tnom i s =
+        let up = fun _ -> Some s in
+        let tctx = !global in
+        global := {tctx with qualns=Map.modify_opt i up tctx.qualns}
 
       let fresh =
         let visit_func freshmap = function
