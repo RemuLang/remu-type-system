@@ -1,5 +1,3 @@
-
-
 (* for pretty print BatMap.t *)
 type ('k, 'v) lmap = ('k * 'v) list
 [@@deriving show]

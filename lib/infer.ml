@@ -8,14 +8,15 @@ type rowt =
   [@@deriving show  { with_path = false }]
 
 and t =
-  | App     of t * t
-  | Arrow   of t * t
-  | Var     of int
-  | Nom     of int
-  | Fresh   of string
-  | Tuple   of t list
-  | Forall  of string list * t
-  | Record  of rowt
+  | App      of t * t
+  | Arrow    of t * t
+  | Var      of int
+  | Nom      of int
+  | Fresh    of string
+  | Tuple    of t list
+  | Forall   of string list * t
+  | Record   of rowt
+  | Implicit of t * t
   [@@deriving show  { with_path = false }]
 
 let (|->) a b = Arrow(a, b)
@@ -46,6 +47,7 @@ let previsit (f : 'ctx -> t -> ('ctx * t)) : 'ctx -> t -> t =
     | App(a, b)               -> App(eval_t a, eval_t b)
     | Arrow(a, b)             -> Arrow(eval_t a, eval_t b)
     | Tuple xs                -> Tuple(List.map eval_t xs)
+    | Implicit(wit, t)        -> Implicit(eval_t wit, eval_t t)
     | Forall(ns, t)           -> Forall(ns, eval_t t)
     | Record rowt             -> Record(eval_row rowt)
   in visit_t
@@ -65,7 +67,8 @@ let visit_check (f : t -> bool) : t -> bool =
     | App(a, b)               -> eval_t a && eval_t b
     | Arrow(a, b)             -> eval_t a && eval_t b
     | Tuple xs                -> List.for_all eval_t xs
-    | Forall(_, t)           -> eval_t t
+    | Implicit(wit, t)        -> eval_t wit && eval_t t
+    | Forall(_, t)            -> eval_t t
     | Record rowt             -> eval_row rowt
   in eval_t
 
@@ -201,6 +204,12 @@ let crate_tc : tctx -> (module TState) =
           else mut_tvar a b; true
         | a, (Var _ as b) -> unify b a
         | (_, Fresh s) | (Fresh s, _) -> raise @@ UnboundTypeVar s
+        | Implicit(a1, b1), Implicit(a2, b2) ->
+          unify a1 a2 && unify b1 b2
+        | Implicit(_, a), b
+        | a, Implicit(_, b) -> unify a b
+        | Arrow(a1, r1), Arrow(a2, r2) ->
+          unify a1 a2 && unify r1 r2
         | App(f1, arg1), App(f2, arg2) ->
           unify f1 f2 && unify arg1 arg2
         | Tuple xs1, Tuple xs2 ->

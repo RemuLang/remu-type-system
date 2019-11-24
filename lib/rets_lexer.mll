@@ -14,6 +14,7 @@ rule read = parse
   | "store" { STORE }
   | "nom" { NOM }
   | "->" { ARROW }
+  | "=>" { IMPLY }
   | "forall" { FORALL }
   | id { ID (Lexing.lexeme lexbuf) }
   | white { read lexbuf }

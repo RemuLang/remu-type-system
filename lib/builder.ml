@@ -47,6 +47,7 @@ let rec dumpstr = function
   | App(f, arg)  -> dumpstr f ^ " (" ^ dumpstr arg ^ ")"
   | Arrow(arg, ret) when is_simple arg -> dumpstr arg ^ " -> " ^ dumpstr ret
   | Arrow(arg, ret) -> "(" ^ dumpstr arg ^ ") -> " ^ dumpstr ret
+  | Implicit(wit, t) -> "{" ^ dumpstr wit ^ "} => " ^ dumpstr t
   | Forall(ns, t) -> "forall {" ^ String.join " " ns ^ "} " ^ dumpstr t
   | Tuple(elts) -> "[" ^ String.join ", " (List.map dumpstr elts) ^ "]"
   | Record rowt -> begin match dumpstr_row rowt with

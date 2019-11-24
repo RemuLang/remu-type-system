@@ -16,6 +16,7 @@ open Builder
 %token LB
 %token RB
 %token LBB
+%token IMPLY
 %token RBB
 %token COLON
 %token ASSIGN
@@ -51,6 +52,7 @@ typ:
   | LB elts=separated_list(COMMA, typ) RB {Tuple elts}
   | FORALL LBB ns=list(ID) RBB ty=typ {Forall(ns, ty)}
   | LBB fs=rowtyp RBB {Record(fs)}
+  | LBB witness=typ RBB IMPLY bounded=typ {Implicit(witness, bounded)}
   ;
 
 typeapp:

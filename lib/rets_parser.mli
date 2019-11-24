@@ -14,6 +14,7 @@ type token =
   | LP
   | LBB
   | LB
+  | IMPLY
   | ID of (string)
   | FORALL
   | EOF
