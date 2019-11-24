@@ -60,6 +60,7 @@ let rec dumpstr = function
 and dumpstr_row : rowt -> (string list * string option) = function
   | RowCons(n, t, rowt) ->
     let (xs, o) = dumpstr_row rowt in (n ^ ": " ^ dumpstr t)::xs, o
+  | RowPoly (Record rowt) -> dumpstr_row rowt
   | RowPoly t -> [], Some (dumpstr t)
   | RowMono -> [], None
 
