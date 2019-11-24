@@ -50,7 +50,7 @@ typ:
   | tapp=typeapp {tapp}
   | arg=typlit ARROW ret=typ { Arrow(arg, ret) }
   | LB elts=separated_list(COMMA, typ) RB {Tuple elts}
-  | FORALL LBB ns=list(ID) RBB ty=typ {Forall(ns, ty)}
+  | FORALL LBB ns=separated_list(COMMA, ID) RBB ty=typ {Forall(ns, ty)}
   | LBB fs=rowtyp RBB {Record(fs)}
   | LBB witness=typ RBB IMPLY bounded=typ {Implicit(witness, bounded)}
   ;
