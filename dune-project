@@ -2,7 +2,7 @@
 (name remu_ts)
 (generate_opam_files true)
 (package
-    (name "remu_ts")
+    (name remu_ts)
     (synopsis "tql")
     (description "tql awsl")
     (depends
