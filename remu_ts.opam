@@ -1,0 +1,15 @@
+opam-version: "2.0"
+name: "remu_ts"
+version: "0.1"
+synopsis: "external type infer"
+description: """
+Longer description
+"""
+maintainer: "thautwarm <thaut@logic.cs.tsukuba.ac.jp>"
+authors: "thautwarm <thaut@logic.cs.tsukuba.ac.jp>"
+license: "mit"
+homepage: "https://github.com/RemuLang/remu-type-system"
+bug-reports: "https://github.com/RemuLang/remu-type-system/issues"
+dev-repo: "https://github.com/RemuLang/remu-type-system"
+depends: [ "ocaml" "ocamlfind" "batteries"]
+build: ["dune" "build" "-p" name "-j" jobs]
