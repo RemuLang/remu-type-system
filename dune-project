@@ -11,4 +11,5 @@
     (synopsis "External type infer")
     (description "external type infer")
     (depends
-    (batteries (>= 2.0))))
+    (batteries (>= 2.0))
+    (ppx_deriving (>= 4.0))))

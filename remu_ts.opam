@@ -10,6 +10,7 @@ bug-reports: "https://github.com/RemuLang/remu-type-system/issues"
 depends: [
   "dune" {>= "1.11"}
   "batteries" {>= "2.0"}
+  "ppx_deriving" {>= "4.0"}
 ]
 build: [
   ["dune" "subst"] {pinned}
