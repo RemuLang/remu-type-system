@@ -1,4 +1,3 @@
-(* open Remu_ts.Comm *)
 open Comm
 
 type rowt =
@@ -215,19 +214,6 @@ let crate_tc : tctx -> (module TState) =
         | Tuple xs1, Tuple xs2 ->
           List.for_all2 unify xs1 xs2
         | Record a, Record b ->
-          (* let rec unify_has_field record_t fn fty =
-            (* fn: field name; fty: field type *)
-            (* may produce a new record_t *)
-            match record_t with
-            | Var _ ->
-              let ex = new_tvar() in
-              let ex = Record(fn, fty, ExtRef ex)
-              in unify record_t ex
-            | Record(k, v, ex) when k = fn -> unify v fty
-            | Record(_, _, ExtRef ex)      -> unify_has_fiel ex fn fty
-            (* not row-polymorphic and given field not found *)
-            | Record (_, _, Mono)          -> false
-          in *)
           let (m1, ex1) = extract_row a in
           let (m2, ex2) = extract_row b in
           let common_keys =
