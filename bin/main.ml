@@ -5,4 +5,5 @@ open Remu_ts.Builder
 let _ =
   let buf = Lexing.from_channel stdin in
   let bs = List.fold_right List.cons (run_parser buf) [] in
-  from_builder bs (dump stdout)
+  let mk_show _ = {name_of = string_of_int} in
+  from_builder bs (dump mk_show stdout)

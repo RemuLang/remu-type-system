@@ -42,7 +42,11 @@ let is_simple = function
   | Var _ | Fresh _ | Nom _ | Record _ | Tuple _  -> true
   | _ -> false
 
-let rec dumpstr = function
+type show_nom = {name_of: int -> string}
+
+let rec dumpstr ({name_of} as show) x =
+  let dumpstr = dumpstr show in
+  match x with
   | App(f, arg) when is_simple arg -> dumpstr f ^ " " ^ dumpstr arg
   | App(f, arg)  -> dumpstr f ^ " (" ^ dumpstr arg ^ ")"
   | Arrow(arg, ret) when is_simple arg -> dumpstr arg ^ " -> " ^ dumpstr ret
@@ -50,22 +54,27 @@ let rec dumpstr = function
   | Implicit(wit, t) -> "{" ^ dumpstr wit ^ "} => " ^ dumpstr t
   | Forall(ns, t) -> "forall {" ^ String.join " " ns ^ "} " ^ dumpstr t
   | Tuple(elts) -> "[" ^ String.join ", " (List.map dumpstr elts) ^ "]"
-  | Record rowt -> begin match dumpstr_row rowt with
+  | Record rowt -> begin match dumpstr_row show rowt with
     | xs, Some tho -> "{" ^ String.join ", " xs ^ " | " ^ tho ^ "}"
     | xs, None     -> "{" ^ String.join ", " xs ^ "}"
     end
   | Var i -> "'" ^ string_of_int i
-  | Nom i -> "^" ^ string_of_int i
+  | Nom i -> "^" ^ name_of i
   | Fresh a -> a
 
-and dumpstr_row : rowt -> (string list * string option) = function
+and dumpstr_row show x =
+  let dumpstr_row = dumpstr_row show in
+  let dumpstr = dumpstr show in
+  match x with
   | RowCons(n, t, rowt) ->
     let (xs, o) = dumpstr_row rowt in (n ^ ": " ^ dumpstr t)::xs, o
   | RowPoly (Record rowt) -> dumpstr_row rowt
   | RowPoly t -> [], Some (dumpstr t)
   | RowMono -> [], None
 
-let dump out = fun ((module M: TState), r, ns) ->
+let mk_show_named_nom = fun (module M: TState) -> {name_of = fun i -> Map.find_default "unknown-type" i (!M.global).qualns}
+let dump mk_show out = fun ((module M: TState) as m, r, ns) ->
+  let show = mk_show m in
   let print s = output_string out s in
   let _ = match r with
     | Some i ->
@@ -78,5 +87,5 @@ let dump out = fun ((module M: TState), r, ns) ->
     in
       print @@ string_of_int i;
       print " ";
-      print @@ dumpstr pruned;
+      print @@ dumpstr show pruned;
       print ";\n"
