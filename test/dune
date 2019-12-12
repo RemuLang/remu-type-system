@@ -1,4 +1,4 @@
 (tests
- (names test_infer test_tagless)
+ (names test_infer test_tagless plfp_example)
  (libraries remu_ts)
  (preprocess (pps ppx_deriving.show)))
